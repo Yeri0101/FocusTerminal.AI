@@ -47,7 +47,7 @@ namespace FocusTerminal.AI
 
             string apiKey = config["ApiKey"];
 
-            if (string.IsNullOrEmpty(apiKey) || apiKey.Contains("API_KEY_Gemini"))
+            if (string.IsNullOrEmpty(apiKey) || apiKey.Contains("AQUÍ_VA_TU_API_KEY"))
             {
                 ConsoleHelper.ShowPopup("Error de Configuración", "La API Key de Gemini no está configurada en appsettings.json. Las funciones de IA estarán limitadas.", ConsoleColor.Red);
             }
@@ -57,7 +57,6 @@ namespace FocusTerminal.AI
             _weatherService = new WeatherService();
             _isSessionActive = false;
         }
-
 
         public async Task Start()
         {
@@ -96,6 +95,7 @@ namespace FocusTerminal.AI
         {
             while (_isSessionActive)
             {
+                _focusMonitor.ClearAllHistory(); // Limpiar historial para el nuevo intervalo
                 DateTime intervalStartTime = DateTime.Now;
                 DateTime endTime = intervalStartTime.AddMinutes(_currentTask.IntervalDurationMinutes);
                 _nextCheckPointPercentage = 15;
@@ -108,7 +108,10 @@ namespace FocusTerminal.AI
                     double progressPercentage = (elapsedSeconds / totalSeconds) * 100;
 
                     string progressBar = ConsoleHelper.CreateProgressBar(progressPercentage);
-                    Console.Write($"\rProgreso: {progressBar} {progressPercentage:F0}% | Tiempo restante: {remainingTime:mm\\:ss} ");
+
+                    // --- INICIO DE MODIFICACIÓN #2 ---
+                    Console.Write($"\rProgreso: {progressBar} {progressPercentage:F0}% | Tiempo restante: {remainingTime:mm\\:ss} | Comandos: [1] Stop [2] Pause ");
+                    // --- FIN DE MODIFICACIÓN #2 ---
 
                     if (progressPercentage >= _nextCheckPointPercentage)
                     {
@@ -121,7 +124,10 @@ namespace FocusTerminal.AI
                         string command = Console.ReadLine()?.ToLower().Trim() ?? "";
                         switch (command)
                         {
+                            // --- INICIO DE MODIFICACIÓN #2 ---
                             case "stop":
+                            case "1":
+                                // --- FIN DE MODIFICACIÓN #2 ---
                                 Console.Write("\n¿Deseas eliminar la tarea guardada al salir? (s/n, 'n' por defecto la guardará): ");
                                 string deleteChoice = Console.ReadLine()?.ToLower().Trim();
                                 if (deleteChoice == "s")
@@ -132,7 +138,11 @@ namespace FocusTerminal.AI
                                 _isSessionActive = false;
                                 ShowSessionSummary();
                                 break;
+
+                            // --- INICIO DE MODIFICACIÓN #2 ---
                             case "pause":
+                            case "2":
+                                // --- FIN DE MODIFICACIÓN #2 ---
                                 TimeSpan activeTime = DateTime.Now - intervalStartTime;
                                 _focusMonitor.PauseMonitoring();
                                 await ShowPauseSummary(activeTime, remainingTime);
@@ -308,7 +318,9 @@ namespace FocusTerminal.AI
     public class FocusMonitor
     {
         private readonly List<string> _clipboardHistory = new List<string>();
-        private string _lastClipboardText = "";
+        // --- INICIO DE MODIFICACIÓN #1 ---
+        private readonly HashSet<string> _processedClipboardTexts = new HashSet<string>();
+        // --- FIN DE MODIFICACIÓN #1 ---
         private readonly TaskPoolGlobalHook _hook;
         private readonly List<int> _kpmHistory = new List<int>();
         private int _keystrokeCount = 0;
@@ -390,12 +402,16 @@ namespace FocusTerminal.AI
             {
                 var clipboard = new Clipboard();
                 string currentClipboardText = await clipboard.GetTextAsync();
-                if (!string.IsNullOrEmpty(currentClipboardText) && currentClipboardText != _lastClipboardText)
+
+                // --- INICIO DE MODIFICACIÓN #1 ---
+                // Solo procesar si el texto es nuevo y no ha sido analizado antes en este intervalo.
+                if (!string.IsNullOrEmpty(currentClipboardText) && !_processedClipboardTexts.Contains(currentClipboardText))
                 {
-                    _lastClipboardText = currentClipboardText;
                     string truncatedText = currentClipboardText.Substring(0, Math.Min(currentClipboardText.Length, 100));
                     _clipboardHistory.Add(truncatedText);
+                    _processedClipboardTexts.Add(currentClipboardText); // Marcar como procesado
                 }
+                // --- FIN DE MODIFICACIÓN #1 ---
             }
             catch { /* Ignorar errores */ }
         }
@@ -415,6 +431,19 @@ namespace FocusTerminal.AI
             _sampledWordsHistory.Clear();
             return history;
         }
+
+        // --- INICIO DE MODIFICACIÓN #1 ---
+        public void ClearAllHistory()
+        {
+            _clipboardHistory.Clear();
+            _processedClipboardTexts.Clear();
+            _kpmHistory.Clear();
+            _sampledWordsHistory.Clear();
+            _wordBuffer.Clear();
+            _currentWord.Clear();
+            _keystrokeCount = 0;
+        }
+        // --- FIN DE MODIFICACIÓN #1 ---
     }
 
     public class WeatherService
@@ -454,13 +483,12 @@ namespace FocusTerminal.AI
 
         public async Task<FocusResult> AnalyzeFocusAsync(List<string> clipboardHistory, List<int> kpmHistory, List<string> sampledWords, string taskDescription)
         {
-            if (string.IsNullOrEmpty(_apiKey) || _apiKey.Contains("API_KEY_Gemeni")) return new FocusResult { IsFocused = true, Message = "API Key no configurada." };
+            if (string.IsNullOrEmpty(_apiKey) || _apiKey.Contains("AQUÍ_VA_TU_API_KEY")) return new FocusResult { IsFocused = true, Message = "API Key no configurada." };
 
             string clipboardText = clipboardHistory.Any() ? $"Historial del portapapeles: [{string.Join(", ", clipboardHistory.Select(item => $"'{item}'"))}]." : "El usuario no ha copiado nada recientemente.";
             string kpmText = kpmHistory.Any() ? $"Ritmo de escritura reciente (teclas por minuto): [{string.Join(", ", kpmHistory)}]." : "No hay datos de ritmo de escritura.";
             string sampledWordsText = sampledWords.Any() ? $"Una muestra de las palabras que ha escrito es: [{string.Join(", ", sampledWords)}]." : "No hay muestra de palabras escritas.";
 
-            // --- INICIO DE LA MODIFICACIÓN DEL PROMPT ---
             string prompt = $"Eres un asistente de concentración. Tu objetivo principal es analizar si el contenido de lo que escribe y copia un usuario está relacionado con su tarea. La velocidad de escritura es secundaria.\n" +
                             $"Tarea del usuario: '{taskDescription}'.\n" +
                             $"Datos de actividad:\n" +
@@ -472,7 +500,6 @@ namespace FocusTerminal.AI
                             $"2. **INACTIVIDAD POSITIVA:** Si el ritmo de escritura es CERO, pero el portapapeles y las palabras son irrelevantes o están vacíos, asume que el usuario está leyendo o pensando. Considera esto como **ENFOCADO** y dale un mensaje sobre la importancia de la reflexión.\n" +
                             $"3. **ENFOQUE CLARO:** Si el ritmo de escritura es alto y las palabras escritas están relacionadas con la tarea, el usuario está **ENFOCADO**.\n" +
                             $"Responde únicamente con un objeto JSON con el formato: {{\"is_focused\": boolean, \"message\": \"un mensaje muy corto, amigable y específico para el usuario\"}}.";
-            // --- FIN DE LA MODIFICACIÓN DEL PROMPT ---
 
             var apiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={_apiKey}";
             var payload = new { contents = new[] { new { parts = new[] { new { text = prompt } } } } };
@@ -502,7 +529,7 @@ namespace FocusTerminal.AI
         }
         private async Task<string> GenerateTextWithGemini(string prompt)
         {
-            if (string.IsNullOrEmpty(_apiKey) || _apiKey.Contains("API_KEY_Gemeni")) return "Música Ambiental (API Key no configurada)";
+            if (string.IsNullOrEmpty(_apiKey) || _apiKey.Contains("AQUÍ_VA_TU_API_KEY")) return "Música Ambiental (API Key no configurada)";
             var apiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={_apiKey}";
             var payload = new { contents = new[] { new { parts = new[] { new { text = prompt } } } } };
             try
