@@ -18,11 +18,11 @@ namespace FocusTerminal.AI
                 {
                     var currentWeather = jsonDoc.RootElement.GetProperty("current_weather");
                     var temp = currentWeather.GetProperty("temperature").GetDouble();
-                    var code = currentWeather.GetProperty("weathercode").GetInt32();
-                    return $"{temp}°C — Código de clima: {code}";
+                    // --- CAMBIO REALIZADO: AHORA SOLO DEVUELVE LA TEMPERATURA ---
+                    return $"{temp}°C";
                 }
             }
-            catch { return "No disponible"; }
+            catch { return "Non disponible"; }
         }
     }
 }
