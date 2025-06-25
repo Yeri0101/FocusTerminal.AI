@@ -69,39 +69,45 @@ namespace FocusTerminal.AI
                 return;
             }
 
-            // --- INICIO DE LA MODIFICACIÓN ---
-            // 1. Mostrar mensaje de carga inmediato
             Console.WriteLine($"\nIniciando sección de '{_currentTask.Mode}'...");
 
-            // 2. Obtener los datos de forma asíncrona
             var weatherTask = _weatherService.GetWeatherAsync("Lausanne");
             var playlistTask = _geminiService.GetPlaylistRecommendation(_currentTask.Mode, _currentTask.Description);
 
-            // Esperar a que ambas tareas terminen
             await Task.WhenAll(weatherTask, playlistTask);
 
-            // Recuperar los resultados
             string weather = await weatherTask;
             _recommendedPlaylist = await playlistTask;
 
-            // 3. Limpiar la línea de carga y mostrar la información completa
             if (Console.CursorTop > 0)
             {
                 Console.SetCursorPosition(0, Console.CursorTop - 1);
             }
             Console.Write(new string(' ', Console.WindowWidth > 0 ? Console.WindowWidth - 1 : 0) + "\r");
 
+            // --- INICIO DE MODIFICACIÓN DE COLORES ---
+            Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine($"\n--- Sesión de '{_currentTask.Mode}' Iniciada ---");
-            Console.WriteLine($"🌤️  Clima actual en Lausanne: {weather}");
-            Console.WriteLine($"Tarea: {_currentTask.Name} | Modo: {_currentTask.Mode} | Intervalo: {_currentTask.IntervalDurationMinutes} min");
+            Console.Write($"🌤️  Clima actual en Lausanne: ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"{weather}");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write($"Tarea: ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"{_currentTask.Name} | Modo: {_currentTask.Mode} | Intervalo: {_currentTask.IntervalDurationMinutes} min");
 
-            // Mostrar la recomendación de playlist obtenida
-            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.ForegroundColor = ConsoleColor.Blue;
             Console.WriteLine("\nRecomendación musical lista:");
-            Console.WriteLine($"💡 Sugerencia: Para tu tarea, te recomiendo: '{_recommendedPlaylist.Name}'");
-            Console.WriteLine($"   Enlace: {_recommendedPlaylist.Url}");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write($"💡 Sugerencia: ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write($"Para tu tarea, te recomiendo: '{_recommendedPlaylist.Name}'");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write("\n   Enlace: ");
+            Console.ForegroundColor = ConsoleColor.Blue;
+            Console.WriteLine(_recommendedPlaylist.Url);
             Console.ResetColor();
-            // --- FIN DE LA MODIFICACIÓN ---
+            // --- FIN DE MODIFICACIÓN DE COLORES ---
 
             _isSessionActive = true;
 
@@ -134,22 +140,23 @@ namespace FocusTerminal.AI
                     string progressBar = ConsoleHelper.CreateProgressBar(progressPercentage);
 
                     Console.Write("\r");
-
                     Console.ForegroundColor = ConsoleColor.Green;
                     Console.Write($"Progreso: {progressBar} {progressPercentage:F0}%");
-
                     Console.ResetColor();
-                    Console.Write($" | Tiempo restante: {remainingTime:mm\\:ss} | Comandos: ");
-
+                    Console.Write(" | ");
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Console.Write("Tiempo restante: ");
+                    Console.ResetColor();
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.Write($"{remainingTime:mm\\:ss}");
+                    Console.ResetColor();
+                    Console.Write(" | Comandos: ");
                     Console.ForegroundColor = ConsoleColor.Red;
                     Console.Write("[1] Stop");
-
                     Console.ResetColor();
                     Console.Write(" ");
-
                     Console.ForegroundColor = ConsoleColor.Yellow;
                     Console.Write("[2] Pause ");
-
                     Console.ResetColor();
 
                     if (progressPercentage >= _nextCheckPointPercentage)
@@ -163,27 +170,25 @@ namespace FocusTerminal.AI
                         string command = Console.ReadLine()?.ToLower().Trim() ?? "";
                         switch (command)
                         {
-                            case "stop":
                             case "1":
-                                Console.Write("\n¿Deseas eliminar la tarea guardada al salir? (s/n, 'n' por defecto la guardará): ");
-                                string deleteChoice = Console.ReadLine()?.ToLower().Trim();
-                                if (deleteChoice == "s")
-                                {
-                                    if (File.Exists(TASK_CONFIG_FILE)) { File.Delete(TASK_CONFIG_FILE); Console.WriteLine("Tarea eliminada."); }
-                                }
-                                else { Console.WriteLine("Tarea guardada para la próxima vez."); }
-                                _isSessionActive = false;
-                                ShowSessionSummary();
+                                StopSession();
                                 break;
-
-                            case "pause":
                             case "2":
                                 TimeSpan activeTime = DateTime.Now - intervalStartTime;
                                 _focusMonitor.PauseMonitoring();
                                 await ShowPauseSummary(activeTime, remainingTime);
-                                endTime = await HandlePause(endTime);
-                                _focusMonitor.ResumeMonitoring();
-                                Console.WriteLine("\nReanudando sesión...");
+
+                                var pauseResult = await HandlePause(endTime);
+                                if (!pauseResult.sessionShouldContinue)
+                                {
+                                    StopSession();
+                                }
+                                else
+                                {
+                                    endTime = pauseResult.newEndTime;
+                                    _focusMonitor.ResumeMonitoring();
+                                    Console.WriteLine("\nReanudando sesión...");
+                                }
                                 break;
                         }
                     }
@@ -196,11 +201,23 @@ namespace FocusTerminal.AI
                     Console.Write("¿Iniciar otro intervalo? (s/n): ");
                     if (Console.ReadLine()?.ToLower() != "s")
                     {
-                        _isSessionActive = false;
-                        ShowSessionSummary();
+                        StopSession();
                     }
                 }
             }
+        }
+
+        private void StopSession()
+        {
+            Console.Write("\n¿Deseas eliminar la tarea guardada al salir? (s/n, 'n' por defecto la guardará): ");
+            string deleteChoice = Console.ReadLine()?.ToLower().Trim();
+            if (deleteChoice == "s")
+            {
+                if (File.Exists(TASK_CONFIG_FILE)) { File.Delete(TASK_CONFIG_FILE); Console.WriteLine("Tarea eliminada."); }
+            }
+            else { Console.WriteLine("Tarea guardada para la próxima vez."); }
+            _isSessionActive = false;
+            ShowSessionSummary();
         }
 
         private async Task PerformFocusCheck()
@@ -220,16 +237,23 @@ namespace FocusTerminal.AI
             ConsoleHelper.ShowPopup(title, result.Message, color);
         }
 
-        private async Task<DateTime> HandlePause(DateTime currentEndTime)
+        private async Task<(DateTime newEndTime, bool sessionShouldContinue)> HandlePause(DateTime currentEndTime)
         {
             DateTime pauseStartTime = DateTime.Now;
             while (true)
             {
-                if (Console.KeyAvailable && Console.ReadLine()?.ToLower().Trim() == "resume")
+                if (Console.KeyAvailable)
                 {
-                    DateTime pauseEndTime = DateTime.Now;
-                    TimeSpan pauseDuration = pauseEndTime - pauseStartTime;
-                    return currentEndTime.Add(pauseDuration);
+                    string command = Console.ReadLine()?.ToLower().Trim() ?? "";
+                    switch (command)
+                    {
+                        case "2":
+                            DateTime pauseEndTimeResume = DateTime.Now;
+                            TimeSpan pauseDurationResume = pauseEndTimeResume - pauseStartTime;
+                            return (currentEndTime.Add(pauseDurationResume), true);
+                        case "1":
+                            return (currentEndTime, false);
+                    }
                 }
                 await Task.Delay(100);
             }
@@ -240,14 +264,41 @@ namespace FocusTerminal.AI
             Console.WriteLine();
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine("--- SESIÓN EN PAUSA ---");
+
             string weather = await _weatherService.GetWeatherAsync("Lausanne");
-            Console.WriteLine($"⏱️  Tiempo activo: {activeTime:mm} min");
-            Console.WriteLine($"📍  Modo: {_currentTask.Mode} ({_currentTask.Description})");
-            Console.WriteLine($"⏳  Tiempo restante del intervalo: {remainingTime:mm\\:ss}");
-            Console.WriteLine($"🌤️  Clima actual en Lausanne: {weather}");
-            Console.WriteLine($"🎵  Música sugerida: {_recommendedPlaylist.Name} ({_recommendedPlaylist.Url})");
-            Console.WriteLine("\nEscribe 'resume' para continuar.");
+
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write("⏱️  Tiempo activo: ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"{activeTime:mm} min");
+
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write("📍  Modo: ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"{_currentTask.Mode} ({_currentTask.Description})");
+
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write("⏳  Tiempo restante del intervalo: ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"{remainingTime:mm\\:ss}");
+
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write("🌤️  Clima actual en Lausanne: ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"{weather}");
+
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write("🎵  Música sugerida: ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write($"{_recommendedPlaylist.Name} (");
+            Console.ForegroundColor = ConsoleColor.Blue;
+            Console.Write($"{_recommendedPlaylist.Url}");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine(")");
+
             Console.ResetColor();
+            Console.WriteLine("\n[2] para continuar.");
+            Console.WriteLine("[1] para finalizar la sesión.");
         }
 
         private bool SetupTask()
