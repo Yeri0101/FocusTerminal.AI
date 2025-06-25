@@ -11,6 +11,7 @@ namespace FocusTerminal.AI
         [STAThread]
         public static async Task Main(string[] args)
         {
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
             var sessionManager = new SessionManager();
             await sessionManager.Start();
         }
