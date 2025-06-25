@@ -69,15 +69,39 @@ namespace FocusTerminal.AI
                 return;
             }
 
-            Console.WriteLine("\n--- Sesión Iniciada ---");
+            // --- INICIO DE LA MODIFICACIÓN ---
+            // 1. Mostrar mensaje de carga inmediato
+            Console.WriteLine($"\nIniciando sección de '{_currentTask.Mode}'...");
 
-            string weather = await _weatherService.GetWeatherAsync("Lausanne");
+            // 2. Obtener los datos de forma asíncrona
+            var weatherTask = _weatherService.GetWeatherAsync("Lausanne");
+            var playlistTask = _geminiService.GetPlaylistRecommendation(_currentTask.Mode, _currentTask.Description);
+
+            // Esperar a que ambas tareas terminen
+            await Task.WhenAll(weatherTask, playlistTask);
+
+            // Recuperar los resultados
+            string weather = await weatherTask;
+            _recommendedPlaylist = await playlistTask;
+
+            // 3. Limpiar la línea de carga y mostrar la información completa
+            if (Console.CursorTop > 0)
+            {
+                Console.SetCursorPosition(0, Console.CursorTop - 1);
+            }
+            Console.Write(new string(' ', Console.WindowWidth > 0 ? Console.WindowWidth - 1 : 0) + "\r");
+
+            Console.WriteLine($"\n--- Sesión de '{_currentTask.Mode}' Iniciada ---");
             Console.WriteLine($"🌤️  Clima actual en Lausanne: {weather}");
-
             Console.WriteLine($"Tarea: {_currentTask.Name} | Modo: {_currentTask.Mode} | Intervalo: {_currentTask.IntervalDurationMinutes} min");
 
-            _recommendedPlaylist = await _geminiService.GetPlaylistRecommendation(_currentTask.Mode, _currentTask.Description);
-            await ProvidePlaylistRecommendation();
+            // Mostrar la recomendación de playlist obtenida
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine("\nRecomendación musical lista:");
+            Console.WriteLine($"💡 Sugerencia: Para tu tarea, te recomiendo: '{_recommendedPlaylist.Name}'");
+            Console.WriteLine($"   Enlace: {_recommendedPlaylist.Url}");
+            Console.ResetColor();
+            // --- FIN DE LA MODIFICACIÓN ---
 
             _isSessionActive = true;
 
@@ -95,7 +119,7 @@ namespace FocusTerminal.AI
         {
             while (_isSessionActive)
             {
-                _focusMonitor.ClearAllHistory(); // Limpiar historial para el nuevo intervalo
+                _focusMonitor.ClearAllHistory();
                 DateTime intervalStartTime = DateTime.Now;
                 DateTime endTime = intervalStartTime.AddMinutes(_currentTask.IntervalDurationMinutes);
                 _nextCheckPointPercentage = 15;
@@ -109,9 +133,24 @@ namespace FocusTerminal.AI
 
                     string progressBar = ConsoleHelper.CreateProgressBar(progressPercentage);
 
-                    // --- INICIO DE MODIFICACIÓN #2 ---
-                    Console.Write($"\rProgreso: {progressBar} {progressPercentage:F0}% | Tiempo restante: {remainingTime:mm\\:ss} | Comandos: [1] Stop [2] Pause ");
-                    // --- FIN DE MODIFICACIÓN #2 ---
+                    Console.Write("\r");
+
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.Write($"Progreso: {progressBar} {progressPercentage:F0}%");
+
+                    Console.ResetColor();
+                    Console.Write($" | Tiempo restante: {remainingTime:mm\\:ss} | Comandos: ");
+
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.Write("[1] Stop");
+
+                    Console.ResetColor();
+                    Console.Write(" ");
+
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.Write("[2] Pause ");
+
+                    Console.ResetColor();
 
                     if (progressPercentage >= _nextCheckPointPercentage)
                     {
@@ -124,10 +163,8 @@ namespace FocusTerminal.AI
                         string command = Console.ReadLine()?.ToLower().Trim() ?? "";
                         switch (command)
                         {
-                            // --- INICIO DE MODIFICACIÓN #2 ---
                             case "stop":
                             case "1":
-                                // --- FIN DE MODIFICACIÓN #2 ---
                                 Console.Write("\n¿Deseas eliminar la tarea guardada al salir? (s/n, 'n' por defecto la guardará): ");
                                 string deleteChoice = Console.ReadLine()?.ToLower().Trim();
                                 if (deleteChoice == "s")
@@ -139,10 +176,8 @@ namespace FocusTerminal.AI
                                 ShowSessionSummary();
                                 break;
 
-                            // --- INICIO DE MODIFICACIÓN #2 ---
                             case "pause":
                             case "2":
-                                // --- FIN DE MODIFICACIÓN #2 ---
                                 TimeSpan activeTime = DateTime.Now - intervalStartTime;
                                 _focusMonitor.PauseMonitoring();
                                 await ShowPauseSummary(activeTime, remainingTime);
@@ -242,15 +277,6 @@ namespace FocusTerminal.AI
             else { CreateNewTask(); return true; }
         }
 
-        private async Task ProvidePlaylistRecommendation()
-        {
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("\nBuscando una playlist para tu sesión...");
-            Console.WriteLine($"💡 Sugerencia: Para tu tarea, te recomiendo: '{_recommendedPlaylist.Name}'");
-            Console.WriteLine($"   Enlace: {_recommendedPlaylist.Url}");
-            Console.ResetColor();
-        }
-
         private void CreateNewTask()
         {
             Console.WriteLine("\n--- Creando Nueva Tarea ---");
@@ -318,9 +344,7 @@ namespace FocusTerminal.AI
     public class FocusMonitor
     {
         private readonly List<string> _clipboardHistory = new List<string>();
-        // --- INICIO DE MODIFICACIÓN #1 ---
         private readonly HashSet<string> _processedClipboardTexts = new HashSet<string>();
-        // --- FIN DE MODIFICACIÓN #1 ---
         private readonly TaskPoolGlobalHook _hook;
         private readonly List<int> _kpmHistory = new List<int>();
         private int _keystrokeCount = 0;
@@ -403,15 +427,12 @@ namespace FocusTerminal.AI
                 var clipboard = new Clipboard();
                 string currentClipboardText = await clipboard.GetTextAsync();
 
-                // --- INICIO DE MODIFICACIÓN #1 ---
-                // Solo procesar si el texto es nuevo y no ha sido analizado antes en este intervalo.
                 if (!string.IsNullOrEmpty(currentClipboardText) && !_processedClipboardTexts.Contains(currentClipboardText))
                 {
                     string truncatedText = currentClipboardText.Substring(0, Math.Min(currentClipboardText.Length, 100));
                     _clipboardHistory.Add(truncatedText);
-                    _processedClipboardTexts.Add(currentClipboardText); // Marcar como procesado
+                    _processedClipboardTexts.Add(currentClipboardText);
                 }
-                // --- FIN DE MODIFICACIÓN #1 ---
             }
             catch { /* Ignorar errores */ }
         }
@@ -432,7 +453,6 @@ namespace FocusTerminal.AI
             return history;
         }
 
-        // --- INICIO DE MODIFICACIÓN #1 ---
         public void ClearAllHistory()
         {
             _clipboardHistory.Clear();
@@ -443,7 +463,6 @@ namespace FocusTerminal.AI
             _currentWord.Clear();
             _keystrokeCount = 0;
         }
-        // --- FIN DE MODIFICACIÓN #1 ---
     }
 
     public class WeatherService
