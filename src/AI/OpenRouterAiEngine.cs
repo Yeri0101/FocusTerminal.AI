@@ -47,22 +47,26 @@ namespace FocusTerminal.AI.AI
             return Task.FromResult(hasKey);
         }
 
-        public async Task<FocusResult> AnalyzeFocusAsync(IReadOnlyList<string> clipboardHistory, string taskDescription, CancellationToken ct = default)
+        public async Task<FocusResult> AnalyzeFocusAsync(
+            IReadOnlyList<string> clipboardHistory,
+            IReadOnlyList<string> activeWindows,
+            string taskDescription,
+            CancellationToken ct = default)
         {
-            if (clipboardHistory == null || clipboardHistory.Count == 0)
-            {
-                return new FocusResult
-                {
-                    IsFocused = true,
-                    Message = "Sin registros recientes en el portapapeles. Buen ritmo de trabajo.",
-                    ProviderName = ProviderName
-                };
-            }
+            string snippets = (clipboardHistory != null && clipboardHistory.Count > 0)
+                ? string.Join("\n- ", clipboardHistory)
+                : "(Sin copias recientes)";
 
-            string snippets = string.Join("\n- ", clipboardHistory);
-            string systemPrompt = "Eres un asistente de concentración para desarrolladores y estudiantes. Devuelve ÚNICAMENTE un JSON válido con el esquema: {\"is_focused\": boolean, \"message\": \"mensaje corto en español\"}.";
+            string windows = (activeWindows != null && activeWindows.Count > 0)
+                ? string.Join("\n- ", activeWindows)
+                : "(Sin cambios de ventana registrados)";
+
+            string systemPrompt = "Eres un asistente de concentración para desarrolladores y estudiantes. Devuelve ÚNICAMENTE un JSON válido con el esquema: {\"is_focused\": boolean, \"message\": \"mensaje corto en español\"}. Si el usuario navega en redes sociales, ocio o webs no relacionadas, márcalo como distraído (is_focused: false).";
             string userPrompt = $"""
                 Tarea actual del usuario: "{taskDescription}"
+                
+                Ventanas y aplicaciones activas usadas:
+                - {windows}
                 
                 Últimos textos copiados al portapapeles:
                 - {snippets}

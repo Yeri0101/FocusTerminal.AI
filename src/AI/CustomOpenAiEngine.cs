@@ -52,26 +52,31 @@ namespace FocusTerminal.AI.AI
             }
         }
 
-        public async Task<FocusResult> AnalyzeFocusAsync(IReadOnlyList<string> clipboardHistory, string taskDescription, CancellationToken ct = default)
+        public async Task<FocusResult> AnalyzeFocusAsync(
+            IReadOnlyList<string> clipboardHistory,
+            IReadOnlyList<string> activeWindows,
+            string taskDescription,
+            CancellationToken ct = default)
         {
-            if (clipboardHistory == null || clipboardHistory.Count == 0)
-            {
-                return new FocusResult
-                {
-                    IsFocused = true,
-                    Message = "Sin actividad en portapapeles. Trabajo continuo.",
-                    ProviderName = ProviderName
-                };
-            }
+            string snippets = (clipboardHistory != null && clipboardHistory.Count > 0)
+                ? string.Join("\n- ", clipboardHistory)
+                : "(Sin copias recientes)";
 
-            string snippets = string.Join("\n- ", clipboardHistory);
-            string systemPrompt = "Eres un evaluador de concentración. Responde únicamente con JSON en formato: {\"is_focused\": boolean, \"message\": \"mensaje corto en español\"}.";
+            string windows = (activeWindows != null && activeWindows.Count > 0)
+                ? string.Join("\n- ", activeWindows)
+                : "(Sin cambios de ventana registrados)";
+
+            string systemPrompt = "Eres un evaluador de concentración. Responde únicamente con JSON en formato: {\"is_focused\": boolean, \"message\": \"mensaje corto en español\"}. Si el usuario navega en redes sociales, ocio o contenido no relacionado a su tarea, clasifícalo como distraído (is_focused: false).";
             string userPrompt = $"""
                 Tarea del usuario: "{taskDescription}"
+                
+                Ventanas y aplicaciones utilizadas:
+                - {windows}
+                
                 Contenidos recientes copiados:
                 - {snippets}
                 
-                Determina si está enfocado en su tarea o distraído.
+                Determina si está enfocado en su tarea o distraído en ocio/redes.
                 """;
 
             var responseText = await CallChatCompletionAsync(systemPrompt, userPrompt, ct);

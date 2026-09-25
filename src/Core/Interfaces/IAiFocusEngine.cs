@@ -9,7 +9,11 @@ namespace FocusTerminal.AI.Core.Interfaces
     {
         string ProviderName { get; }
         Task<bool> IsAvailableAsync(CancellationToken ct = default);
-        Task<FocusResult> AnalyzeFocusAsync(IReadOnlyList<string> clipboardHistory, string taskDescription, CancellationToken ct = default);
+        Task<FocusResult> AnalyzeFocusAsync(
+            IReadOnlyList<string> clipboardHistory,
+            IReadOnlyList<string> activeWindows,
+            string taskDescription,
+            CancellationToken ct = default);
         Task<Playlist> GetPlaylistRecommendationAsync(string mode, string taskDescription, CancellationToken ct = default);
         Task<string> GetMotivationalQuoteAsync(CancellationToken ct = default);
         Task<string> GetTechFactAsync(CancellationToken ct = default);

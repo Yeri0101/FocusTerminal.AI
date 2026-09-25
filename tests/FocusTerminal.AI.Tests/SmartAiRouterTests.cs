@@ -23,7 +23,7 @@ namespace FocusTerminal.AI.Tests
             var router = new SmartAiRouter(settings);
             var snippets = new List<string> { "Console.WriteLine('Hello World');" };
 
-            var result = await router.AnalyzeFocusAsync(snippets, "C# programming");
+            var result = await router.AnalyzeFocusAsync(snippets, new List<string>(), "C# programming");
 
             Assert.NotNull(result);
             Assert.True(result.IsFocused);

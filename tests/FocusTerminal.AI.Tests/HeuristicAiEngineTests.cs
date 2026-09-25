@@ -18,7 +18,7 @@ namespace FocusTerminal.AI.Tests
                 "https://learn.microsoft.com/dotnet/api"
             };
 
-            var result = await engine.AnalyzeFocusAsync(snippets, "Refactoring C# application");
+            var result = await engine.AnalyzeFocusAsync(snippets, new List<string> { "Visual Studio Code" }, "Refactoring C# application");
 
             Assert.True(result.IsFocused);
             Assert.Contains("Patrones de trabajo", result.Message);
@@ -35,7 +35,22 @@ namespace FocusTerminal.AI.Tests
                 "https://www.twitch.tv/streamer"
             };
 
-            var result = await engine.AnalyzeFocusAsync(snippets, "Writing technical documentation");
+            var result = await engine.AnalyzeFocusAsync(snippets, new List<string>(), "Writing technical documentation");
+
+            Assert.False(result.IsFocused);
+            Assert.Contains("distracción", result.Message);
+        }
+
+        [Fact]
+        public async Task AnalyzeFocusAsync_ShouldDetectDistraction_WhenActiveWindowIsSocialMedia()
+        {
+            var engine = new HeuristicAiEngine();
+            var windows = new List<string>
+            {
+                "redes sociale s - Buscar con Google - Google Chrome"
+            };
+
+            var result = await engine.AnalyzeFocusAsync(new List<string>(), windows, "investigacion universidades informatica");
 
             Assert.False(result.IsFocused);
             Assert.Contains("distracción", result.Message);

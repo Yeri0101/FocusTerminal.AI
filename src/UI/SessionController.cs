@@ -192,10 +192,9 @@ namespace FocusTerminal.AI.UI
 
         private async Task TriggerFocusCheckAsync(int percentage)
         {
-            var history = _focusMonitor.GetAndClearClipboardHistory();
-            if (history.Count == 0) return;
+            var activity = _focusMonitor.GetAndClearActivity();
 
-            var result = await _aiEngine.AnalyzeFocusAsync(history, _task.Description);
+            var result = await _aiEngine.AnalyzeFocusAsync(activity.ClipboardHistory, activity.ActiveWindows, _task.Description);
 
             _totalChecks++;
             if (result.IsFocused)

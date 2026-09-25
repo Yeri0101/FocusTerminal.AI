@@ -99,12 +99,16 @@ namespace FocusTerminal.AI.AI
             return await engine.IsAvailableAsync(ct);
         }
 
-        public async Task<FocusResult> AnalyzeFocusAsync(IReadOnlyList<string> clipboardHistory, string taskDescription, CancellationToken ct = default)
+        public async Task<FocusResult> AnalyzeFocusAsync(
+            IReadOnlyList<string> clipboardHistory,
+            IReadOnlyList<string> activeWindows,
+            string taskDescription,
+            CancellationToken ct = default)
         {
             var engine = await ResolveActiveEngineAsync(ct);
             try
             {
-                var result = await engine.AnalyzeFocusAsync(clipboardHistory, taskDescription, ct);
+                var result = await engine.AnalyzeFocusAsync(clipboardHistory, activeWindows, taskDescription, ct);
                 if (result != null) return result;
             }
             catch
@@ -112,7 +116,7 @@ namespace FocusTerminal.AI.AI
                 // Fallback automático al motor heurístico
             }
 
-            return await _heuristic.AnalyzeFocusAsync(clipboardHistory, taskDescription, ct);
+            return await _heuristic.AnalyzeFocusAsync(clipboardHistory, activeWindows, taskDescription, ct);
         }
 
         public async Task<Playlist> GetPlaylistRecommendationAsync(string mode, string taskDescription, CancellationToken ct = default)

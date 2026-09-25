@@ -54,22 +54,24 @@ namespace FocusTerminal.AI.AI
             }
         }
 
-        public async Task<FocusResult> AnalyzeFocusAsync(IReadOnlyList<string> clipboardHistory, string taskDescription, CancellationToken ct = default)
+        public async Task<FocusResult> AnalyzeFocusAsync(
+            IReadOnlyList<string> clipboardHistory,
+            IReadOnlyList<string> activeWindows,
+            string taskDescription,
+            CancellationToken ct = default)
         {
-            if (clipboardHistory == null || clipboardHistory.Count == 0)
-            {
-                return new FocusResult
-                {
-                    IsFocused = true,
-                    Message = "Sin actividad distractora detectada.",
-                    ProviderName = ProviderName
-                };
-            }
+            string historyText = (clipboardHistory != null && clipboardHistory.Count > 0)
+                ? string.Join("; ", clipboardHistory.Select(s => $"\"{s}\""))
+                : "Sin copias recientes";
 
-            string historyText = string.Join("; ", clipboardHistory.Select(s => $"\"{s}\""));
+            string windowsText = (activeWindows != null && activeWindows.Count > 0)
+                ? string.Join("; ", activeWindows.Select(w => $"\"{w}\""))
+                : "Ventanas estándar de trabajo";
+
             string prompt = $$"""
-                Analiza si el usuario está enfocado en su tarea o distraído.
+                Analiza si el usuario está enfocado en su tarea o distraído en ocio/redes.
                 Tarea: "{{taskDescription}}"
+                Ventanas y aplicaciones activas usadas: [{{windowsText}}]
                 Historial reciente de portapapeles: [{{historyText}}]
                 
                 Responde EXCLUSIVAMENTE un objeto JSON válido con este esquema:

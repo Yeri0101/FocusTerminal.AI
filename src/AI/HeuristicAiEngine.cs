@@ -14,17 +14,20 @@ namespace FocusTerminal.AI.AI
 
         private static readonly HashSet<string> DistractionKeywords = new(StringComparer.OrdinalIgnoreCase)
         {
-            "youtube.com", "tiktok", "instagram", "facebook", "twitter.com", "x.com",
-            "netflix", "twitch.tv", "reddit.com", "steam", "discord.com", "aliexpress",
-            "amazon", "shein", "mercadolibre", "meme", "game", "juego", "series", "pelicula"
+            "youtube", "tiktok", "instagram", "facebook", "twitter", "x.com",
+            "netflix", "twitch", "reddit", "steam", "discord", "aliexpress",
+            "amazon", "shein", "mercadolibre", "meme", "game", "juego", "series", "pelicula",
+            "redes", "sociales", "whatsapp", "telegram", "chismes", "noticias", "musica",
+            "spotify", "shorts", "reels", "anime"
         };
 
         private static readonly HashSet<string> FocusKeywords = new(StringComparer.OrdinalIgnoreCase)
         {
-            "github.com", "gitlab.com", "stackoverflow.com", "learn.microsoft.com", "docs.",
+            "github", "gitlab", "stackoverflow", "learn.microsoft", "docs",
             "c#", "dotnet", "python", "typescript", "javascript", "react", "docker", "api",
             "class", "function", "async", "await", "public", "private", "return", "import",
-            "select", "from", "where", "test", "commit", "push", "pull", "merge", "debug"
+            "select", "from", "where", "test", "commit", "push", "pull", "merge", "debug",
+            "universidad", "estudio", "carrera", "curso", "investigacion", "academic", "scholar"
         };
 
         private static readonly Dictionary<string, List<Playlist>> DefaultPlaylists = new(StringComparer.OrdinalIgnoreCase)
@@ -69,39 +72,82 @@ namespace FocusTerminal.AI.AI
 
         public Task<bool> IsAvailableAsync(CancellationToken ct = default) => Task.FromResult(true);
 
-        public Task<FocusResult> AnalyzeFocusAsync(IReadOnlyList<string> clipboardHistory, string taskDescription, CancellationToken ct = default)
+        public Task<FocusResult> AnalyzeFocusAsync(
+            IReadOnlyList<string> clipboardHistory,
+            IReadOnlyList<string> activeWindows,
+            string taskDescription,
+            CancellationToken ct = default)
         {
-            if (clipboardHistory == null || clipboardHistory.Count == 0)
-            {
-                return Task.FromResult(new FocusResult
-                {
-                    IsFocused = true,
-                    Message = "No se detectó actividad distractora. Buen ritmo.",
-                    Confidence = 0.9,
-                    ProviderName = ProviderName
-                });
-            }
-
             int distractionHits = 0;
             int focusHits = 0;
+            string? firstDistraction = null;
 
-            foreach (var snippet in clipboardHistory)
+            // 1. Evaluar ventanas activas visitadas
+            if (activeWindows != null)
             {
-                var lower = snippet.ToLowerInvariant();
-                if (DistractionKeywords.Any(k => lower.Contains(k)))
+                foreach (var win in activeWindows)
                 {
-                    distractionHits++;
+                    var lower = win.ToLowerInvariant();
+                    foreach (var kw in DistractionKeywords)
+                    {
+                        if (lower.Contains(kw))
+                        {
+                            distractionHits += 2; // Las ventanas tienen mayor peso
+                            firstDistraction ??= win;
+                        }
+                    }
+
+                    foreach (var kw in FocusKeywords)
+                    {
+                        if (lower.Contains(kw))
+                        {
+                            focusHits++;
+                        }
+                    }
                 }
-                if (FocusKeywords.Any(k => lower.Contains(k)))
+            }
+
+            // 2. Evaluar portapapeles
+            if (clipboardHistory != null)
+            {
+                foreach (var snippet in clipboardHistory)
                 {
-                    focusHits++;
+                    var lower = snippet.ToLowerInvariant();
+                    foreach (var kw in DistractionKeywords)
+                    {
+                        if (lower.Contains(kw))
+                        {
+                            distractionHits++;
+                            firstDistraction ??= snippet;
+                        }
+                    }
+
+                    foreach (var kw in FocusKeywords)
+                    {
+                        if (lower.Contains(kw))
+                        {
+                            focusHits++;
+                        }
+                    }
                 }
             }
 
             bool isFocused = distractionHits <= focusHits;
-            string message = isFocused
-                ? "Patrones de trabajo activos detectados. ¡Sigue así!"
-                : "Se detectaron posibles fuentes de distracción en el portapapeles. Vuelve a tu objetivo principal.";
+            string message;
+
+            if (isFocused)
+            {
+                message = focusHits > 0
+                    ? "Patrones de trabajo y estudio activos detectados. ¡Excelente ritmo!"
+                    : "Sesión en curso sin distracciones detectadas. Sigue enfocado.";
+            }
+            else
+            {
+                string context = !string.IsNullOrWhiteSpace(firstDistraction)
+                    ? $" ('{Truncate(firstDistraction, 35)}')"
+                    : "";
+                message = $"⚠️ Posible distracción detectada{context}. Reenfócate en tu objetivo.";
+            }
 
             return Task.FromResult(new FocusResult
             {
@@ -129,5 +175,11 @@ namespace FocusTerminal.AI.AI
 
         public Task<string> GetTechFactAsync(CancellationToken ct = default) =>
             Task.FromResult(TechFacts[Random.Shared.Next(TechFacts.Length)]);
+
+        private static string Truncate(string text, int max)
+        {
+            if (text.Length <= max) return text;
+            return text.Substring(0, max) + "...";
+        }
     }
 }

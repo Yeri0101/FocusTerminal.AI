@@ -32,18 +32,12 @@ namespace FocusTerminal.AI.AI
             return Task.FromResult(hasKey);
         }
 
-        public async Task<FocusResult> AnalyzeFocusAsync(IReadOnlyList<string> clipboardHistory, string taskDescription, CancellationToken ct = default)
+        public async Task<FocusResult> AnalyzeFocusAsync(
+            IReadOnlyList<string> clipboardHistory,
+            IReadOnlyList<string> activeWindows,
+            string taskDescription,
+            CancellationToken ct = default)
         {
-            if (clipboardHistory == null || clipboardHistory.Count == 0)
-            {
-                return new FocusResult
-                {
-                    IsFocused = true,
-                    Message = "Portapapeles limpio, sin distracciones registradas.",
-                    ProviderName = ProviderName
-                };
-            }
-
             if (!await IsAvailableAsync(ct))
             {
                 return new FocusResult
@@ -54,12 +48,21 @@ namespace FocusTerminal.AI.AI
                 };
             }
 
-            string snippets = string.Join(", ", clipboardHistory.Select(s => $"'{s}'"));
+            string snippets = (clipboardHistory != null && clipboardHistory.Count > 0)
+                ? string.Join(", ", clipboardHistory.Select(s => $"'{s}'"))
+                : "Sin copias recientes";
+
+            string windows = (activeWindows != null && activeWindows.Count > 0)
+                ? string.Join(", ", activeWindows.Select(w => $"'{w}'"))
+                : "Ventanas estándar de trabajo";
+
             string prompt = $$"""
                 Un usuario está trabajando en una tarea descrita como: '{{taskDescription}}'.
+                Ventanas y aplicaciones que ha utilizado: [{{windows}}].
                 Historial de textos copiados recientemente: [{{snippets}}].
-                Basado en esto, ¿parece estar enfocado en su tarea o distraído?
-                Responde ÚNICAMENTE con un objeto JSON: {"is_focused": true, "message": "mensaje muy corto y amigable en español"}.
+                
+                Basado en esto, ¿parece estar enfocado en su tarea o distraído en ocio, redes sociales u otros temas ajenos?
+                Responde ÚNICAMENTE con un objeto JSON: {"is_focused": boolean, "message": "mensaje muy corto y amigable en español"}.
                 """;
 
             var responseText = await GenerateContentAsync(prompt, ct);
