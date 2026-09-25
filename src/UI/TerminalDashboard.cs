@@ -43,12 +43,13 @@ namespace FocusTerminal.AI.UI
                 var choice = AnsiConsole.Prompt(
                     new SelectionPrompt<string>()
                         .Title($"[yellow]Se encontró una tarea previa guardada:[/] [bold]{Markup.Escape(existingTask.Name)}[/]")
-                        .PageSize(4)
+                        .PageSize(5)
                         .AddChoices(new[]
                         {
                             "▶️ Continuar con esta tarea",
                             "📝 Crear una nueva tarea",
                             "📊 Ver estadísticas históricas",
+                            "⚙️ Configurar Proveedor de IA",
                             "❌ Salir"
                         }));
 
@@ -60,7 +61,37 @@ namespace FocusTerminal.AI.UI
                 {
                     return new TaskDetails { Name = "__SHOW_STATS__" };
                 }
+                else if (choice.StartsWith("⚙️"))
+                {
+                    return new TaskDetails { Name = "__CONFIG_AI__" };
+                }
                 else if (choice.StartsWith("❌"))
+                {
+                    return new TaskDetails { Name = "__EXIT__" };
+                }
+            }
+            else
+            {
+                var mainChoice = AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("Selecciona una opción:")
+                        .AddChoices(new[]
+                        {
+                            "📝 Iniciar una nueva tarea",
+                            "📊 Ver estadísticas históricas",
+                            "⚙️ Configurar Proveedor de IA",
+                            "❌ Salir"
+                        }));
+
+                if (mainChoice.StartsWith("📊"))
+                {
+                    return new TaskDetails { Name = "__SHOW_STATS__" };
+                }
+                else if (mainChoice.StartsWith("⚙️"))
+                {
+                    return new TaskDetails { Name = "__CONFIG_AI__" };
+                }
+                else if (mainChoice.StartsWith("❌"))
                 {
                     return new TaskDetails { Name = "__EXIT__" };
                 }

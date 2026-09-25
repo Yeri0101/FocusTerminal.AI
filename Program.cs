@@ -17,14 +17,9 @@ namespace FocusTerminal.AI
         {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
 
-            // 1. Cargar configuración desde appsettings.json
-            var configBuilder = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
-
-            var configuration = configBuilder.Build();
-            var settings = new AppSettings();
-            configuration.Bind(settings);
+            // 1. Cargar configuración con ConfigService
+            var configService = new ConfigService();
+            var settings = configService.LoadSettings();
 
             // 2. Componer servicios de infraestructura y seguridad
             var sanitizer = new ClipboardSanitizer(settings.Privacy);
@@ -34,6 +29,7 @@ namespace FocusTerminal.AI
             var storageService = new StorageService();
             var audioNotifier = new AudioNotifier(settings.Audio);
             var dashboard = new TerminalDashboard();
+            var aiWizard = new AiSetupWizard(configService);
 
             // 3. Orquestador de la sesión
             var controller = new SessionController(
@@ -42,7 +38,9 @@ namespace FocusTerminal.AI
                 weatherService,
                 storageService,
                 audioNotifier,
-                dashboard);
+                dashboard,
+                aiWizard,
+                settings);
 
             await controller.RunAsync();
         }

@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using FocusTerminal.AI.AI;
 using FocusTerminal.AI.Core.Interfaces;
 using FocusTerminal.AI.Core.Models;
 using FocusTerminal.AI.Services;
@@ -11,12 +12,14 @@ namespace FocusTerminal.AI.UI
 {
     public class SessionController
     {
-        private readonly IAiFocusEngine _aiEngine;
+        private readonly SmartAiRouter _aiEngine;
         private readonly IFocusMonitor _focusMonitor;
         private readonly IWeatherService _weatherService;
         private readonly IStorageService _storageService;
         private readonly AudioNotifier _audioNotifier;
         private readonly TerminalDashboard _dashboard;
+        private readonly AiSetupWizard _aiWizard;
+        private readonly AppSettings _settings;
 
         private TaskDetails _task = new();
         private bool _isActive;
@@ -25,12 +28,14 @@ namespace FocusTerminal.AI.UI
         private int _distractionChecks;
 
         public SessionController(
-            IAiFocusEngine aiEngine,
+            SmartAiRouter aiEngine,
             IFocusMonitor focusMonitor,
             IWeatherService weatherService,
             IStorageService storageService,
             AudioNotifier audioNotifier,
-            TerminalDashboard dashboard)
+            TerminalDashboard dashboard,
+            AiSetupWizard aiWizard,
+            AppSettings settings)
         {
             _aiEngine = aiEngine;
             _focusMonitor = focusMonitor;
@@ -38,10 +43,14 @@ namespace FocusTerminal.AI.UI
             _storageService = storageService;
             _audioNotifier = audioNotifier;
             _dashboard = dashboard;
+            _aiWizard = aiWizard;
+            _settings = settings;
         }
 
         public async Task RunAsync()
         {
+            await _aiWizard.PromptIfNoAiConfiguredAsync(_settings, _aiEngine);
+
             _dashboard.RenderWelcomeBanner(_aiEngine.ProviderName);
 
             while (true)
@@ -60,6 +69,13 @@ namespace FocusTerminal.AI.UI
                     var history = await _storageService.GetSessionHistoryAsync(20);
                     var totalHours = await _storageService.GetTotalFocusHoursAsync();
                     _dashboard.RenderHistoricalStats(history, totalHours);
+                    _dashboard.RenderWelcomeBanner(_aiEngine.ProviderName);
+                    continue;
+                }
+
+                if (taskDetails.Name == "__CONFIG_AI__")
+                {
+                    await _aiWizard.RunSetupWizardAsync(_settings, _aiEngine);
                     _dashboard.RenderWelcomeBanner(_aiEngine.ProviderName);
                     continue;
                 }
