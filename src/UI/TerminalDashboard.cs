@@ -131,7 +131,7 @@ namespace FocusTerminal.AI.UI
             };
 
             AnsiConsole.Write(panel);
-            AnsiConsole.MarkupLine("[dim grey]Controles: [bold white][Espacio][/] Pausar/Reanudar  |  [bold white][S][/] Estadísticas  |  [bold white][Q][/] Finalizar[/]");
+            AnsiConsole.MarkupLine("[dim grey]Controles: [bold white][[Espacio]][/] Pausar/Reanudar  |  [bold white][[S]][/] Estadísticas  |  [bold white][[Q]][/] Finalizar[/]");
             AnsiConsole.WriteLine();
         }
 
@@ -170,7 +170,7 @@ namespace FocusTerminal.AI.UI
             };
 
             AnsiConsole.Write(panel);
-            AnsiConsole.MarkupLine("[bold white]Presiona [green][Espacio][/] para reanudar la sesión...[/]");
+            AnsiConsole.MarkupLine("[bold white]Presiona [green][[Espacio]][/] para reanudar la sesión...[/]");
         }
 
         public void RenderSessionSummary(SessionHistory session, string quote, string techFact)

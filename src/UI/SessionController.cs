@@ -241,7 +241,7 @@ namespace FocusTerminal.AI.UI
             int filled = (int)Math.Round((percentage / 100.0) * width);
             filled = Math.Clamp(filled, 0, width);
             int empty = width - filled;
-            return $"[blue]{new string('━', filled)}[/][grey]{new string('─', empty)}[/]";
+            return $"{new string('■', filled)}{new string('░', empty)}";
         }
     }
 }
